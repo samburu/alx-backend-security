@@ -1,13 +1,21 @@
-# ip_tracking/views.py
-from django.http import JsonResponse
-from ratelimit.decorators import ratelimit
+from django.contrib.auth import authenticate, login
+from django.http import HttpResponse
+from django_ratelimit.decorators import ratelimit
+from django.views.decorators.csrf import csrf_exempt
 
-# Anonymous users → 5 req/min
-@ratelimit(key='ip', rate='5/m', block=True)
-def anonymous_sensitive_view(request):
-    return JsonResponse({"message": "Anonymous sensitive action allowed."})
+def get_rate(group, request):
+    return '10/m' if request.user.is_authenticated else '5/m'
 
-# Authenticated users → 10 req/min
-@ratelimit(key='user_or_ip', rate='10/m', block=True)
-def authenticated_sensitive_view(request):
-    return JsonResponse({"message": "Authenticated sensitive action allowed."})
+@csrf_exempt
+@ratelimit(key='ip', rate=get_rate, method='POST', group='login', block=True)
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return HttpResponse("Login successful")
+        else:
+            return HttpResponse("Invalid credentials", status=401)
+    return HttpResponse("Please submit a POST request with username and password")
