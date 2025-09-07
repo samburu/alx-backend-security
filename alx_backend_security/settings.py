@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'ip_tracking',
+    'ratelimit',
 ]
 
 MIDDLEWARE = [
@@ -48,7 +50,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'ip_tracking.middleware.IPLoggingMiddleware',
+    'django_ip_geolocation.middleware.IpGeolocationMiddleware',
+    'ip_tracking.middleware.IPLogMiddleware',
 ]
 
 ROOT_URLCONF = 'alx_backend_security.urls'
@@ -122,3 +125,17 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+def user_or_ip(group, request):
+    if request.user.is_authenticated:
+        return str(request.user.pk)
+    return request.META.get("REMOTE_ADDR")
+
+
+CELERY_BEAT_SCHEDULE = {
+    "detect-anomalies-hourly": {
+        "task": "ip_tracking.tasks.detect_anomalies",
+        "schedule": crontab(minute=0, hour="*"),  # every hour
+    },
+}
